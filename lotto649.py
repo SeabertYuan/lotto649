@@ -1,7 +1,6 @@
 import pygame
 import pygame_gui
 import lotto649driver as ld
-import time
 
 #0 Start by asking whether or not they want to generate their numbers
 #1 If yes, move to step 3
@@ -14,6 +13,7 @@ import time
 #6 Ask if they want to play again and either do nothing (no) or restart (yes)
 
 pygame.init() #Initialize pygame
+pygame.mixer.init()
 backend = ld.lottologic() # make a new object
 
 pygame.display.set_caption('Lotto 649') #Set title of window to 'Lotto 649'
@@ -21,11 +21,13 @@ window_surface = pygame.display.set_mode((800, 600)) #Set window to 800px by 600
 
 #Sets the background to the window size and sets the colour to black
 background = pygame.Surface((800, 600))
-background.fill(pygame.Color('#000000'))
+background.fill(pygame.Color('#FF6EC7'))
 
 manager = pygame_gui.UIManager((800, 600)) #manages every element on the window
+pygame.mixer.music.load('song2.wav') #sets the background music to song2.wav, change this to whatever song you'd like
+pygame.mixer.music.play() #plays the song
 
-text = '<b>Welcome to lotto 649!<br>Would you like to generate random numbers?</b>' #initialize initial text
+text = '<b>Welcome to lotto 649!<br>Would you like to generate random numbers? (Yes/No)</b>' #initialize initial text
 selected_number = '<b></b>' #initialize empty ticket
 
 #Box that contains text to be displayed
@@ -110,11 +112,15 @@ while is_running:
                         backend.yn_button = 0
                         compare(text, information_box)
                         result_button.show()
-                    elif stage == 6:
+                    elif stage == 6: #when yes pressed when asked to reset
                         stage = 0
+                        i = 1
+                        pygame.mixer.music.unload()
+                        pygame.mixer.music.load('song2.wav')
+                        pygame.mixer.music.play()
                         selected_number = '<b></b>'
                         change_number_display(selected_number, number_box)
-                        text = '<b>Welcome to lotto 649!<br>Would you like to generate random numbers?</b>'
+                        text = '<b>Welcome to lotto 649!<br>Would you like to generate random numbers? (Yes/No)</b>'
                         change_information(text, information_box)
                         backend = ld.lottologic()
                         
@@ -131,12 +137,15 @@ while is_running:
 
                 if event.ui_element == result_button:
                     print('Result button pressed.')
-                    if stage == 5:
+                    if stage == 5: #when the result button is pressed when numbers are locked in
+                        pygame.mixer.music.unload() #reset all previous songs
+                        pygame.mixer.music.load('song.wav') #switch the song to song1.wav
+                        pygame.mixer.music.play() #play song1.wav
                         text = backend.comparison(text)[:-4]+'<br>Retry? (Yes/No)</b>'
                         change_information(text, information_box)
-                        result_button.hide()
-                        yes_button.enable()
-                        no_button.enable()
+                        result_button.hide() #hide result button
+                        yes_button.enable() #re-enable the yes button
+                        no_button.enable() #re-enable the no button
                         stage = 6
             if event.user_type == pygame_gui.UI_TEXT_ENTRY_CHANGED:
                 if event.ui_element == number_entry:
@@ -149,45 +158,50 @@ while is_running:
                         change_number_display(selected_number, number_box)
                         selected_number = '<b></b>'
                         for number in backend.ticket_numbers:
-                            selected_number = selected_number[:-4]+str(number)+' ' + '</b>'
+                            selected_number = selected_number[:-4]+str(number)+' </b>'
 
             if event.user_type  == pygame_gui.UI_TEXT_ENTRY_FINISHED:
-                if stage == 1:
-                    number_entry.set_text('')
-                    if i in range(1,7):
+                if len(str(event.text)) <= 0: #checks for empty boxes
+                    text = '<b>Enter a valid number!</b>'
+                    change_information(text, information_box)
+                else:
+                    if stage == 1: #when asked to choose numbers
+                        if i < 7: #will do while i is between 1 and 6 inclusive
+                            promise = backend.choose_one_number(backend.ticket_numbers, event.text)
+                            if promise in range(1,50): #Check if number is within range 1-49
+                                backend.ticket_numbers.append(int(promise)) #add number to ticket_numbers
+                                if selected_number.endswith('</b>'):
+                                    selected_number = selected_number[:-4]+str(promise)+' '
+                            else:
+                                text = promise
+                                change_information(text, information_box)
+                                i-=1
+                            i+=1
+                        if i > 6:
+                            stage=2
+                            text = backend.confirm_numbers(text)
+                            change_information(text, information_box)
+                        change_number_display(selected_number, number_box)
+                        number_entry.set_text('')
+                    elif stage == 3: #called when no is pressed when asked to confirm numbers
+                        i = int(event.text)
+                        text = backend.select_change(event.text, text)
+                        change_information(text, information_box)
+                        number_entry.set_text('')
+                        stage = 4
+                    elif stage == 4: #when changing number
                         promise = backend.choose_one_number(backend.ticket_numbers, event.text)
                         if promise in range(1,50):
-                            backend.ticket_numbers.append(int(promise))
-                            if selected_number.endswith('</b>'):
-                                selected_number = selected_number[:-4]+str(promise)+' '
-                        else:
-                            text = promise
-                            change_information(text, information_box)
-                        i+=1
-                    else:
-                        stage=2
+                            backend.ticket_numbers[i-1] = promise
+                        number_entry.set_text('')
+                        selected_number = '<b>'
+                        for num in backend.ticket_numbers:
+                            selected_number += str(num)+' '
+                        selected_number += '</b>'
+                        change_number_display(selected_number, number_box) #Updates ticket display
                         text = backend.confirm_numbers(text)
                         change_information(text, information_box)
-                    change_number_display(selected_number, number_box)
-                elif stage == 3: #called when no is pressed when asked to confirm numbers
-                    i = int(event.text)
-                    text = backend.select_change(event.text, text)
-                    change_information(text, information_box)
-                    number_entry.set_text('')
-                    stage = 4
-                elif stage == 4:
-                    promise = backend.choose_one_number(backend.ticket_numbers, event.text)
-                    if promise in range(1,50):
-                        backend.ticket_numbers[i-1] = promise
-                    number_entry.set_text('')
-                    selected_number = '<b>'
-                    for num in backend.ticket_numbers:
-                        selected_number += str(num)+' '
-                    selected_number += '</b>'
-                    change_number_display(selected_number, number_box) #Updates ticket display
-                    text = backend.confirm_numbers(text)
-                    change_information(text, information_box)
-                    stage = 2
+                        stage = 2
 
     manager.update(time_delta)
     information_box.update(time_delta)
